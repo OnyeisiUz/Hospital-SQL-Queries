@@ -1,0 +1,138 @@
+---# •	To get the names of all the patients
+SELECT patient_id, first_name, last_name, contact_number
+FROM patients;
+
+---# To find the number of male and female patients
+SELECT gender, COUNT(*) AS patient_count
+FROM patients
+GROUP BY gender;
+
+---# Names of all patients who registered in 2022
+SELECT patient_id, first_name, last_name
+FROM patients
+WHERE registration_date LIKE "%2022%";
+
+---# All insurance providers used by patients
+SELECT insurance_provider, COUNT(*)
+FROM patients
+GROUP BY insurance_provider;
+
+---#Getting patients full name and their appointment date
+SELECT pa.patient_id, first_name, last_name,appointment_date
+FROM patients pa
+JOIN appointments ap
+ON pa.patient_id = ap.patient_id;
+
+---#Top 5 most expensive treatment
+SELECT treatment_type, cost
+FROM treatments
+ORDER BY cost DESC 
+LIMIT 5;
+
+---#Total number of appointments per patient AND patients with the highest number of appointments
+SELECT pa.patient_id, last_name, COUNT(appointment_id) AS Appointmentcount
+FROM patients pa 
+JOIN appointments ap
+ON pa.patient_id = ap.patient_id
+GROUP BY patient_id, first_name, last_name
+ORDER BY Appointmentcount DESC;
+
+---#Average cost per treatment type
+SELECT treatment_type, ROUND (AVG(cost),2) AS average_cost
+FROM treatments 
+GROUP BY treatment_type
+ORDER BY average_cost DESC;
+
+---# Patients who have had more than three appointments
+SELECT pa.patient_id, first_name, last_name, COUNT(appointment_id) AS appointmentcount
+FROM patients pa
+JOIN appointments ap
+ON pa.patient_id = ap.patient_id
+GROUP BY pa.patient_id, first_name, last_name
+HAVING appointmentcount > 3
+ORDER BY appointmentcount DESC;
+
+---#Finding patients who's treatments cost more than 4000
+SELECT pa.patient_id, first_name, last_name, cost
+FROM treatments tr
+JOIN appointments ap
+ON ap.appointment_id = tr.appointment_id
+JOIN patients pa
+ON ap.patient_id = pa.patient_id
+WHERE cost > 4000
+ORDER BY cost DESC;
+
+---# Each patient's total cost of treatment
+SELECT pa.patient_id, first_name, last_name, ROUND (SUM(cost)) AS total_cost
+FROM treatments tr
+JOIN appointments ap
+ON ap.appointment_id = tr.appointment_id
+JOIN patients pa
+ON ap.patient_id = pa.patient_id
+GROUP BY  pa.patient_id, first_name, last_name
+ORDER BY  total_cost DESC;
+
+---# Patients who have never missed an appointment 
+SELECT pa.patient_id, first_name, last_name
+FROM patients pa
+WHERE pa.patient_id NOT IN 
+(SELECT a.patient_id
+FROM appointments a
+WHERE status = "No-show");
+
+---# The common reason for visit in 2023
+SELECT reason_for_visit, COUNT(reason_for_visit) AS visit_count
+FROM appointments
+WHERE appointment_date LIKE "2023%"
+GROUP BY reason_for_visit
+ORDER BY visit_count DESC 
+LIMIT 1;
+
+---# USING CTE to find Patients who received more one type of treatments and the treatments they received
+WITH patient_treatments AS
+(SELECT pa.patient_id, pa.first_name, pa.last_name, tr.treatment_type
+FROM patients pa
+JOIN appointments ap
+ON pa.patient_id = ap.patient_id
+JOIN treatments tr
+ON ap.appointment_id = tr.appointment_id),
+
+treatment_count AS
+(SELECT patient_id, COUNT(DISTINCT treatment_type) AS treatment_type_count
+FROM patient_treatments
+GROUP BY patient_id
+HAVING COUNT(DISTINCT treatment_type) > 1)
+
+SELECT pt.patient_id, pt.first_name, pt.last_name, pt.treatment_type
+FROM patient_treatments pt
+JOIN treatment_count tc
+ON pt.patient_id = tc.patient_id
+ORDER BY pt.patient_id, pt.treatment_type;
+
+---# USING windows function to rank patients by total treatment cost
+WITH patient_costs AS (
+    SELECT
+        pa.patient_id,
+        pa.first_name,
+        pa.last_name,
+        SUM(tr.cost) AS total_cost
+	FROM
+        patients pa
+    JOIN
+        appointments ap
+        ON pa.patient_id = ap.patient_id
+    JOIN
+        treatments tr ON ap.appointment_id = tr.appointment_id
+    GROUP BY
+        pa.patient_id, pa.first_name, pa.last_name
+)
+SELECT
+    patient_id,
+    first_name,
+    last_name,
+    total_cost,
+    RANK() OVER (ORDER BY total_cost DESC) AS cost_rank
+FROM
+    patient_costs
+ORDER BY
+    cost_rank;
